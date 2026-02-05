@@ -94,3 +94,10 @@ export async function cancelBookingAction(_prev: null, formData: FormData) {
   if (!slotId) return;
   await cancelBooking(slotId);
 }
+
+/** フォーム action 用（FormData のみ受け取る） */
+export async function cancelBookingFormAction(formData: FormData) {
+  const slotId = formData.get("slotId") as string;
+  if (!slotId) return;
+  await cancelBooking(slotId);
+}

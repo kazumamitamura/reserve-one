@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { cancelBooking } from "@/app/actions/slots";
+import { cancelBookingFormAction } from "@/app/actions/slots";
 import type { ReserveSlot } from "@/lib/types";
 
 export async function MyBookingsSection({
@@ -39,7 +39,7 @@ export async function MyBookingsSection({
                 {format(new Date(slot.end_time), "HH:mm", { locale: ja })}
               </span>
             </div>
-            <form action={cancelBookingAction}>
+            <form action={cancelBookingFormAction}>
               <input type="hidden" name="slotId" value={slot.id} />
               <button
                 type="submit"
