@@ -15,6 +15,14 @@ type Slot = {
   booker_email: string | null;
 };
 
+type SlotRow = {
+  id: string;
+  start_time: string;
+  end_time: string;
+  is_booked: boolean;
+  reserve_profiles: { email?: string } | { email?: string }[] | null;
+};
+
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -71,13 +79,7 @@ export default function AdminPage() {
 
       const { data, error } = await supabase
         .from("reserve_slots")
-        .select(`
-          id,
-          start_time,
-          end_time,
-          is_booked,
-          reserve_profiles:booked_by (email)
-        `)
+        .select(`*, reserve_profiles:booked_by (email)`)
         .gte("start_time", past.toISOString())
         .lte("start_time", limit.toISOString())
         .order("start_time", { ascending: true });
@@ -86,10 +88,16 @@ export default function AdminPage() {
         console.error("Fetch slots error:", error);
       }
 
-      const slots = (data ?? []).map((s: { is_booked: boolean; reserve_profiles: { email?: string } | { email?: string }[] | null }) => {
+      const slots: Slot[] = ((data ?? []) as SlotRow[]).map((s) => {
         const p = s.reserve_profiles;
         const email = Array.isArray(p) ? p[0]?.email : (p as { email?: string } | null)?.email;
-        return { ...s, booker_email: email ?? null };
+        return {
+          id: s.id,
+          start_time: s.start_time,
+          end_time: s.end_time,
+          is_booked: s.is_booked ?? false,
+          booker_email: email ?? null,
+        };
       });
       setAllSlots(slots);
       setLoading(false);
