@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { Calendar, Clock } from "lucide-react";
 import { BookingCalendar } from "@/components/dashboard/BookingCalendar";
+import { DayScheduleGrid } from "@/components/dashboard/DayScheduleGrid";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type Slot = {
@@ -172,6 +173,35 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+        <h2 className="text-base font-semibold text-slate-800">日付を選んでスケジュールを表示</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          日付を選択すると、その日の30分刻みの予約スケジュールが表示されます。
+        </p>
+        <div className="mt-4">
+          <label htmlFor="schedule-date" className="block text-sm font-medium text-slate-700 mb-2">
+            日付
+          </label>
+          <input
+            id="schedule-date"
+            type="date"
+            value={scheduleDate}
+            onChange={(e) => setScheduleDate(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="mt-6">
+          <DayScheduleGrid
+            selectedDate={scheduleDate}
+            slotsForDay={slots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === scheduleDate)}
+            userId={user.id}
+            onBookClick={handleBookClick}
+            isBooking={!!bookingId}
+            bookingSlotId={bookingId}
+          />
+        </div>
       </section>
 
       <BookingCalendar

@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { SlotCalendar } from "@/components/admin/SlotCalendar";
+import { ScheduleEditorByDate } from "@/components/admin/ScheduleEditorByDate";
+import { format as formatDateFns } from "date-fns";
 
 type Slot = {
   id: string;
@@ -35,6 +37,7 @@ export default function AdminPage() {
   const [adminError, setAdminError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
   const [insertError, setInsertError] = useState<string | null>(null);
+  const [scheduleEditorDate, setScheduleEditorDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   async function checkAdmin() {
     const supabase = createClient();
@@ -68,43 +71,44 @@ export default function AdminPage() {
     checkAdmin();
   }, []);
 
-  useEffect(() => {
+  const refetchSlots = useCallback(async () => {
     const supabase = createClient();
-    async function fetchSlots() {
-      const now = new Date();
-      const past = new Date(now);
-      past.setDate(past.getDate() - 7);
-      const limit = new Date(now);
-      limit.setDate(limit.getDate() + 90);
+    const now = new Date();
+    const past = new Date(now);
+    past.setDate(past.getDate() - 7);
+    const limit = new Date(now);
+    limit.setDate(limit.getDate() + 90);
 
-      const { data, error } = await supabase
-        .from("reserve_slots")
-        .select(`*, reserve_profiles:booked_by (email)`)
-        .gte("start_time", past.toISOString())
-        .lte("start_time", limit.toISOString())
-        .order("start_time", { ascending: true });
+    const { data, error } = await supabase
+      .from("reserve_slots")
+      .select(`*, reserve_profiles:booked_by (email)`)
+      .gte("start_time", past.toISOString())
+      .lte("start_time", limit.toISOString())
+      .order("start_time", { ascending: true });
 
-      if (error) {
-        console.error("Fetch slots error:", error);
-      }
-
-      const slots: Slot[] = ((data ?? []) as SlotRow[]).map((s) => {
-        const p = s.reserve_profiles;
-        const email = Array.isArray(p) ? p[0]?.email : (p as { email?: string } | null)?.email;
-        return {
-          id: s.id,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          is_booked: s.is_booked ?? false,
-          booker_email: email ?? null,
-        };
-      });
-      setAllSlots(slots);
-      setLoading(false);
+    if (error) {
+      console.error("Fetch slots error:", error);
     }
-    setLoading(true);
-    fetchSlots();
+
+    const slots: Slot[] = ((data ?? []) as SlotRow[]).map((s) => {
+      const p = s.reserve_profiles;
+      const email = Array.isArray(p) ? p[0]?.email : (p as { email?: string } | null)?.email;
+      return {
+        id: s.id,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        is_booked: s.is_booked ?? false,
+        booker_email: email ?? null,
+      };
+    });
+    setAllSlots(slots);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    refetchSlots();
+  }, [refetchSlots]);
 
   if (isAdmin === null) {
     return <p className="text-slate-500">読み込み中...</p>;
@@ -205,7 +209,33 @@ export default function AdminPage() {
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="text-base font-semibold text-slate-800">枠を作成する</h2>
+        <h2 className="text-base font-semibold text-slate-800">予約可能日・時間の登録（30分刻み）</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          日付を選ぶと30分刻みのスケジュールが表示されます。未登録の枠を「予約可能」として登録できます。
+        </p>
+        <div className="mt-4">
+          <label htmlFor="schedule-date" className="block text-sm font-medium text-slate-700 mb-2">
+            日付を選択
+          </label>
+          <input
+            id="schedule-date"
+            type="date"
+            value={scheduleEditorDate}
+            onChange={(e) => setScheduleEditorDate(e.target.value)}
+            className="rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div className="mt-6">
+          <ScheduleEditorByDate
+            selectedDate={scheduleEditorDate}
+            slotsForDay={allSlots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === scheduleEditorDate)}
+            onSlotsChange={refetchSlots}
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+        <h2 className="text-base font-semibold text-slate-800">枠を1つ作成する</h2>
         <p className="mt-1 text-sm text-slate-600">
           日付と開始・終了時間を指定して枠を作成します
         </p>
