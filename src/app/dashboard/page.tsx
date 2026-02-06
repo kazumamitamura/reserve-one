@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmSlot, setConfirmSlot] = useState<Slot | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
 
   const fetchSlots = useCallback(async () => {
     const supabase = createClient();
