@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { Calendar, Clock } from "lucide-react";
-import { BookingCalendar } from "@/components/dashboard/BookingCalendar";
-import { DayScheduleGrid } from "@/components/dashboard/DayScheduleGrid";
+import { MonthCalendarSelect } from "@/components/shared/MonthCalendarSelect";
+import { FullDaySchedule } from "@/components/shared/FullDaySchedule";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type Slot = {
@@ -26,7 +25,9 @@ export default function DashboardPage() {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmSlot, setConfirmSlot] = useState<Slot | null>(null);
-  const [scheduleDate, setScheduleDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const fetchSlots = useCallback(async () => {
     const supabase = createClient();
@@ -120,9 +121,12 @@ export default function DashboardPage() {
   }
 
   const myBookings = slots.filter((s) => s.is_booked && s.booked_by === user.id);
+  const slotsForDay = selectedDate
+    ? slots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === selectedDate)
+    : [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <ConfirmModal
         isOpen={!!confirmSlot}
         title="予約の確認"
@@ -139,19 +143,16 @@ export default function DashboardPage() {
       />
 
       <div>
-        <h1 className="text-xl font-bold text-slate-800">予約カレンダー</h1>
+        <h1 className="text-xl font-bold text-slate-800">予約</h1>
         <p className="mt-1 text-sm text-slate-600">
-          利用可能な枠から予約できます
+          月間カレンダーから日付を選び、30分刻みのスケジュールから予約できます
         </p>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="mb-3 text-base font-semibold text-slate-700">マイ予約</h2>
-        {myBookings.length === 0 ? (
-          <p className="rounded-lg bg-slate-50 px-4 py-4 text-sm text-slate-500">
-            予約はありません
-          </p>
-        ) : (
+      {/* マイ予約 */}
+      {myBookings.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-slate-700">マイ予約</h2>
           <div className="space-y-2">
             {myBookings.map((slot) => (
               <div
@@ -173,117 +174,45 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-        )}
+        </section>
+      )}
+
+      {error && (
+        <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      <section className="max-w-md">
+        <h2 className="mb-2 text-sm font-medium text-slate-700">月間カレンダー</h2>
+        <MonthCalendarSelect
+          currentDate={calendarDate}
+          onCurrentDateChange={setCalendarDate}
+          selectedDate={selectedDate}
+          onDateSelect={setSelectedDate}
+          slots={slots}
+          highlightMode="any"
+        />
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="text-base font-semibold text-slate-800">日付を選んでスケジュールを表示</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          日付を選択すると、その日の30分刻みの予約スケジュールが表示されます。
-        </p>
-        <div className="mt-4">
-          <label htmlFor="schedule-date" className="block text-sm font-medium text-slate-700 mb-2">
-            日付
-          </label>
-          <input
-            id="schedule-date"
-            type="date"
-            value={scheduleDate}
-            onChange={(e) => setScheduleDate(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div className="mt-6">
-          <DayScheduleGrid
-            selectedDate={scheduleDate}
-            slotsForDay={slots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === scheduleDate)}
+      {selectedDate ? (
+        <section className="w-full">
+          <FullDaySchedule
+            mode="customer"
+            selectedDate={selectedDate}
+            slotsForDay={slotsForDay}
             userId={user.id}
             onBookClick={handleBookClick}
             isBooking={!!bookingId}
             bookingSlotId={bookingId}
           />
+        </section>
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+          <p className="text-slate-500">日付を選択すると、その日の30分刻みスケジュールが表示されます。</p>
+          <p className="mt-1 text-sm text-slate-400">対応可能な枠から「予約する」で予約できます。</p>
         </div>
-      </section>
-
-      <BookingCalendar
-        slots={slots}
-        userId={user.id}
-        onBookClick={handleBookClick}
-        isBooking={!!bookingId}
-        bookingSlotId={bookingId}
-      />
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="mb-4 text-base font-semibold text-slate-700">
-          利用可能な枠（リスト表示）
-        </h2>
-        {error && (
-          <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-        {slots.length === 0 ? (
-          <div className="rounded-lg bg-slate-50 px-4 py-8 text-center">
-            <p className="text-slate-500 mb-2">現在、利用可能な枠はありません</p>
-            <p className="text-sm text-slate-500">
-              管理者が枠を作成するとここに表示されます。
-              <br />
-              管理者の方は <a href="/admin" className="text-blue-600 hover:underline">管理画面</a> から枠を作成してください。
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {slots.map((slot) => {
-              const isBooked = slot.is_booked;
-              const isMine = slot.booked_by === user.id;
-
-              return (
-                <div
-                  key={slot.id}
-                  className={`rounded-xl border p-4 shadow-md transition ${
-                    isBooked
-                      ? "border-slate-200 bg-slate-50 opacity-80"
-                      : "border-slate-200 bg-white shadow-slate-200/50 hover:shadow-lg"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-blue-100 p-2">
-                      <Calendar className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 text-slate-700">
-                        <Clock className="w-4 h-4 flex-shrink-0" />
-                        <span className="text-sm font-medium">
-                          {format(new Date(slot.start_time), "M/d(E)", { locale: ja })}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-lg font-semibold text-slate-900">
-                        {format(new Date(slot.start_time), "HH:mm")}
-                        {" ～ "}
-                        {format(new Date(slot.end_time), "HH:mm")}
-                      </p>
-                      {isBooked ? (
-                        <p className="mt-2 text-sm font-medium text-slate-500">
-                          {isMine ? "予約済み（あなた）" : "受付終了"}
-                        </p>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleBookClick(slot)}
-                          disabled={!!bookingId}
-                          className="mt-3 w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50"
-                        >
-                          {bookingId === slot.id ? "予約中..." : "予約する"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      )}
     </div>
   );
 }

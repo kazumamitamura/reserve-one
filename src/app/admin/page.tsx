@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { format } from "date-fns";
-import { ja } from "date-fns/locale";
-import { SlotCalendar } from "@/components/admin/SlotCalendar";
-import { ScheduleEditorByDate } from "@/components/admin/ScheduleEditorByDate";
-import { format as formatDateFns } from "date-fns";
+import { MonthCalendarSelect } from "@/components/shared/MonthCalendarSelect";
+import { FullDaySchedule } from "@/components/shared/FullDaySchedule";
 
 type Slot = {
   id: string;
@@ -27,17 +25,14 @@ type SlotRow = {
 
 export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("09:30");
   const [allSlots, setAllSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
 
   const [adminError, setAdminError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
-  const [insertError, setInsertError] = useState<string | null>(null);
-  const [scheduleEditorDate, setScheduleEditorDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
+
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   async function checkAdmin() {
     const supabase = createClient();
@@ -150,209 +145,50 @@ export default function AdminPage() {
     );
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setInsertError(null);
-    const supabase = createClient();
-    
-    // デバッグ: 認証状態を確認
-    const { data: { user } } = await supabase.auth.getUser();
-    console.log("Current user:", user);
-    
-    if (!user) {
-      setInsertError("認証エラー: ログインされていません。再ログインしてください。");
-      return;
-    }
-
-    if (!date || !startTime || !endTime) {
-      alert("日付・開始時間・終了時間を入力してください");
-      return;
-    }
-    const start = new Date(`${date}T${startTime}:00`);
-    const end = new Date(`${date}T${endTime}:00`);
-    if (start >= end) {
-      alert("終了時間は開始時間より後にしてください");
-      return;
-    }
-
-    setSubmitting(true);
-    console.log("Inserting slot:", { start_time: start.toISOString(), end_time: end.toISOString() });
-    
-    const { data, error } = await supabase.from("reserve_slots").insert([
-      {
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        is_booked: false,
-      },
-    ]).select();
-
-    console.log("Insert result:", { data, error });
-    setSubmitting(false);
-    
-    if (error) {
-      const errorMsg = `エラー: ${error.message}\nCode: ${error.code}\nDetails: ${error.details || "N/A"}\nHint: ${error.hint || "N/A"}`;
-      console.error("Insert error:", error);
-      setInsertError(errorMsg);
-      return;
-    }
-    alert("作成しました");
-    window.location.reload();
-  }
+  const slotsForDay = selectedDate
+    ? allSlots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === selectedDate)
+    : [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-slate-800">管理ダッシュボード</h1>
         <p className="mt-1 text-sm text-slate-600">
-          枠を作成し、予約状況を確認できます
+          月間カレンダーから日付を選び、その日の予約可能時間を登録・確認できます
         </p>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="text-base font-semibold text-slate-800">予約可能日・時間の登録（30分刻み）</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          日付を選ぶと30分刻みのスケジュールが表示されます。未登録の枠を「予約可能」として登録できます。
-        </p>
-        <div className="mt-4">
-          <label htmlFor="schedule-date" className="block text-sm font-medium text-slate-700 mb-2">
-            日付を選択
-          </label>
-          <input
-            id="schedule-date"
-            type="date"
-            value={scheduleEditorDate}
-            onChange={(e) => setScheduleEditorDate(e.target.value)}
-            className="rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-        <div className="mt-6">
-          <ScheduleEditorByDate
-            selectedDate={scheduleEditorDate}
-            slotsForDay={allSlots.filter((s) => format(new Date(s.start_time), "yyyy-MM-dd") === scheduleEditorDate)}
+      <section className="max-w-md">
+        <h2 className="mb-2 text-sm font-medium text-slate-700">月間カレンダー</h2>
+        <MonthCalendarSelect
+          currentDate={calendarDate}
+          onCurrentDateChange={setCalendarDate}
+          selectedDate={selectedDate}
+          onDateSelect={setSelectedDate}
+          slots={allSlots}
+          highlightMode="any"
+        />
+      </section>
+
+      {selectedDate ? (
+        <section className="w-full">
+          <FullDaySchedule
+            mode="admin"
+            selectedDate={selectedDate}
+            slotsForDay={slotsForDay}
             onSlotsChange={refetchSlots}
           />
+        </section>
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+          <p className="text-slate-500">日付を選択すると、その日の30分刻みスケジュールが表示されます。</p>
+          <p className="mt-1 text-sm text-slate-400">対応不可の枠を「予約可能に登録」で予約可能にできます。</p>
         </div>
-      </section>
+      )}
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="text-base font-semibold text-slate-800">枠を1つ作成する</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          日付と開始・終了時間を指定して枠を作成します
-        </p>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          {insertError && (
-            <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-sm text-red-700 whitespace-pre-wrap">
-              {insertError}
-            </div>
-          )}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label htmlFor="date" className="block text-sm font-medium text-slate-700">
-                日付
-              </label>
-              <input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="start_time" className="block text-sm font-medium text-slate-700">
-                開始時間
-              </label>
-              <input
-                id="start_time"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label htmlFor="end_time" className="block text-sm font-medium text-slate-700">
-                終了時間
-              </label>
-              <input
-                id="end_time"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-slate-900 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50"
-          >
-            {submitting ? "作成中..." : "枠を作成"}
-          </button>
-        </form>
-      </section>
-
-      <SlotCalendar slots={allSlots} />
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
-        <h2 className="text-base font-semibold text-slate-800">作成した枠一覧</h2>
-        <p className="mt-1 mb-4 text-sm text-slate-600">
-          全ての枠（空き枠・予約済み）
-        </p>
-        {loading ? (
-          <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-            読み込み中...
-          </p>
-        ) : allSlots.length === 0 ? (
-          <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-            枠がありません。上のフォームから作成してください。
-          </p>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
-                    日時
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
-                    ステータス
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-600">
-                    予約者
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {allSlots.map((slot) => (
-                  <tr key={slot.id} className="hover:bg-slate-50">
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-slate-900">
-                      {format(new Date(slot.start_time), "M/d(E) HH:mm", { locale: ja })}
-                      {" ～ "}
-                      {format(new Date(slot.end_time), "HH:mm", { locale: ja })}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {slot.is_booked ? (
-                        <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                          予約済み
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          空き
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-600">
-                      {slot.booker_email ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {loading && (
+        <p className="text-center text-sm text-slate-500">読み込み中...</p>
+      )}
     </div>
   );
 }
