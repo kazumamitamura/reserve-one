@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { FullScreenMonthCalendar } from "@/components/shared/FullScreenMonthCalendar";
+import { FullDaySchedule } from "@/components/shared/FullDaySchedule";
 
 type Slot = {
   id: string;
@@ -23,7 +23,6 @@ type SlotRow = {
 };
 
 export default function AdminPage() {
-  const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [allSlots, setAllSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -32,6 +31,7 @@ export default function AdminPage() {
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
 
   const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   async function checkAdmin() {
     const supabase = createClient();
@@ -144,8 +144,15 @@ export default function AdminPage() {
     );
   }
 
+  const slotsForDay = selectedDate
+    ? allSlots.filter((s) => {
+        const key = new Date(s.start_time).toISOString().slice(0, 10);
+        return key === selectedDate;
+      })
+    : [];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-[calc(100vh-64px)] flex flex-col">
       <div>
         <h1 className="text-xl font-bold text-slate-800">管理ダッシュボード</h1>
         <p className="mt-1 text-sm text-slate-600">
@@ -153,11 +160,12 @@ export default function AdminPage() {
         </p>
       </div>
 
-      <section className="w-full">
+      <section className="w-full flex-1 min-h-0">
         <FullScreenMonthCalendar
           currentDate={calendarDate}
           onCurrentDateChange={setCalendarDate}
-          onDateSelect={(dateKey) => router.push(`/admin/schedule/${dateKey}`)}
+          selectedDate={selectedDate}
+          onDateSelect={(dateKey) => setSelectedDate(dateKey)}
           slots={allSlots}
           highlightMode="any"
         />
@@ -165,6 +173,42 @@ export default function AdminPage() {
 
       {loading && (
         <p className="text-center text-sm text-slate-500">読み込み中...</p>
+      )}
+
+      {selectedDate && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedDate(null)}
+        >
+          <div
+            className="w-full max-w-5xl h-[calc(100vh-96px)] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-300 bg-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800">当日スケジュール</h2>
+                <p className="text-sm text-slate-600">{selectedDate}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(null)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+              >
+                閉じる
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <FullDaySchedule
+                mode="admin"
+                selectedDate={selectedDate}
+                slotsForDay={slotsForDay}
+                onSlotsChange={refetchSlots}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

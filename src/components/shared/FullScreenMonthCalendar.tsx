@@ -56,9 +56,11 @@ export function FullScreenMonthCalendar({
   const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
   const now = new Date();
 
+  const rowCount = Math.ceil(days.length / 7);
+
   return (
-    <div className="h-[calc(100vh-180px)] w-full rounded-3xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+    <div className="h-full w-full rounded-3xl border border-gray-300 bg-white shadow-lg overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-300 bg-gray-100">
         <button
           type="button"
           onClick={() => onCurrentDateChange(subMonths(currentDate, 1))}
@@ -77,17 +79,22 @@ export function FullScreenMonthCalendar({
           <ChevronRight className="w-6 h-6 text-slate-600" />
         </button>
       </div>
-      <div className="grid grid-cols-7 h-full">
+      <div className="grid grid-cols-7">
         {weekDays.map((day, i) => (
           <div
             key={day}
-            className={`py-3 text-center text-sm font-medium border-b border-slate-200 ${
+            className={`py-3 text-center text-sm font-medium border-b border-gray-300 bg-gray-100 ${
               i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-slate-600"
             }`}
           >
             {day}
           </div>
         ))}
+      </div>
+      <div
+        className="grid grid-cols-7 flex-1"
+        style={{ gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))` }}
+      >
         {days.map((day) => {
           const dateKey = format(day, "yyyy-MM-dd");
           const isCurrentMonth = isSameMonth(day, currentDate);
@@ -103,7 +110,7 @@ export function FullScreenMonthCalendar({
               type="button"
               onClick={() => !isPast && onDateSelect(dateKey)}
               disabled={isPast}
-              className={`min-h-[120px] px-3 py-2 text-left border-b border-slate-200 border-r border-slate-200 transition ${
+              className={`px-3 py-2 text-left border-b border-gray-300 border-r border-gray-300 transition ${
                 isCurrentMonth ? "bg-white" : "bg-slate-50"
               } ${!isCurrentMonth ? "opacity-50" : ""} ${
                 isPast ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:bg-blue-50"
