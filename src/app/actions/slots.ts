@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { resend } from "@/lib/resend";
 
 export type SlotCreateState = { error?: string; success?: boolean } | null;
 
@@ -72,6 +73,37 @@ export async function bookSlotAction(
     .eq("is_booked", false);
 
   if (error) return { ok: false, error: error.message };
+
+  const { data: slotData } = await supabase
+    .from("reserve_slots")
+    .select("start_time, end_time")
+    .eq("id", slotId)
+    .single();
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const from = process.env.RESEND_FROM || "onboarding@resend.dev";
+  const userEmail = user.email;
+
+  if (process.env.RESEND_API_KEY && adminEmail && userEmail && slotData) {
+    const timeText = `${new Date(slotData.start_time).toLocaleString("ja-JP")} ～ ${new Date(slotData.end_time).toLocaleTimeString("ja-JP")}`;
+    try {
+      await resend.emails.send({
+        from,
+        to: adminEmail,
+        subject: "新しい予約が入りました",
+        text: `新しい予約が入りました。\n\n日時: ${timeText}\n予約者: ${userEmail}`,
+      });
+      await resend.emails.send({
+        from,
+        to: userEmail,
+        subject: "予約が完了しました",
+        text: `予約が完了しました。\n\n日時: ${timeText}\n\nご予約ありがとうございます。`,
+      });
+    } catch (sendError) {
+      console.error("Failed to send booking emails:", sendError);
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/admin");
   return { ok: true };

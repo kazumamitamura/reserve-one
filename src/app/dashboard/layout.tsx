@@ -39,7 +39,7 @@ export default async function DashboardLayout({
           </nav>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl p-6">{children}</main>
+      <main className="mx-auto w-full max-w-none p-6">{children}</main>
     </div>
   );
 }

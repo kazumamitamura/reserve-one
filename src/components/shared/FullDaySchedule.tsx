@@ -83,15 +83,31 @@ export function FullDaySchedule(props: Props) {
           {format(new Date(props.selectedDate + "T12:00:00"), "M月d日(E)", { locale: ja })} のスケジュール
         </h2>
         <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-600">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-5 w-5 rounded bg-white border border-slate-300" /> 対応可能
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-5 w-5 rounded bg-slate-200" /> 対応不可
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-5 w-5 rounded bg-green-500" /> 予約済み
-          </span>
+          {props.mode === "admin" ? (
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-green-200" /> 予約可能
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-pink-200" /> 予約済み
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-slate-200" /> 予約不可
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-white border border-slate-300" /> 予約可能
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-pink-200" /> 予約済み
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-5 w-5 rounded bg-slate-200" /> 予約不可
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -111,12 +127,12 @@ export function FullDaySchedule(props: Props) {
 
               if (!slot) {
                 return (
-                  <tr key={timeStr} className="border-b border-slate-100 bg-slate-50">
+                  <tr key={timeStr} className="border-b border-slate-100 bg-slate-100">
                     <td className="px-6 py-4 text-sm text-slate-600">
                       {timeStr} ～ {endTime}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-slate-500">対応不可</span>
+                      <span className="text-sm text-slate-600">予約不可</span>
                     </td>
                     <td className="px-6 py-4">
                       {props.mode === "admin" ? (
@@ -138,7 +154,7 @@ export function FullDaySchedule(props: Props) {
 
               if (props.mode === "admin") {
                 const s = slot as SlotAdmin;
-                const bgClass = s.is_booked ? "bg-green-100" : "bg-white";
+                const bgClass = s.is_booked ? "bg-pink-100" : "bg-green-100";
                 return (
                   <tr key={s.id} className={`border-b border-slate-100 ${bgClass}`}>
                     <td className="px-6 py-4 text-sm font-medium text-slate-900">
@@ -146,14 +162,14 @@ export function FullDaySchedule(props: Props) {
                     </td>
                     <td className="px-6 py-4">
                       {s.is_booked ? (
-                        <span className="text-sm text-green-800 font-medium">
+                        <span className="text-sm text-pink-800 font-medium">
                           予約済み
                           {s.booker_email && (
                             <span className="ml-2 text-slate-600 font-normal">({s.booker_email})</span>
                           )}
                         </span>
                       ) : (
-                        <span className="text-sm text-slate-700">対応可能</span>
+                        <span className="text-sm text-green-800 font-medium">予約可能</span>
                       )}
                     </td>
                     <td className="px-6 py-4 text-slate-500">—</td>
@@ -164,7 +180,7 @@ export function FullDaySchedule(props: Props) {
               const s = slot as SlotCustomer;
               const isMine = s.booked_by === props.userId;
               const showAsBooked = s.is_booked && isMine;
-              const bgClass = showAsBooked ? "bg-green-100" : s.is_booked ? "bg-slate-100" : "bg-white";
+              const bgClass = s.is_booked ? "bg-pink-100" : "bg-white";
 
               return (
                 <tr key={s.id} className={`border-b border-slate-100 ${bgClass}`}>
@@ -173,11 +189,11 @@ export function FullDaySchedule(props: Props) {
                   </td>
                   <td className="px-6 py-4">
                     {showAsBooked ? (
-                      <span className="text-sm text-green-800 font-medium">予約済み（あなた）</span>
+                      <span className="text-sm text-pink-800 font-medium">予約済み（あなた）</span>
                     ) : s.is_booked ? (
-                      <span className="text-sm text-slate-500">対応不可</span>
+                      <span className="text-sm text-slate-600">予約不可</span>
                     ) : (
-                      <span className="text-sm text-slate-700">対応可能</span>
+                      <span className="text-sm text-slate-700">予約可能</span>
                     )}
                   </td>
                   <td className="px-6 py-4">

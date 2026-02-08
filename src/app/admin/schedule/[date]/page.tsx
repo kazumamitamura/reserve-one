@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
-import { FullScreenMonthCalendar } from "@/components/shared/FullScreenMonthCalendar";
+import { FullDaySchedule } from "@/components/shared/FullDaySchedule";
 
 type Slot = {
   id: string;
@@ -22,16 +23,18 @@ type SlotRow = {
   reserve_profiles: { email?: string } | { email?: string }[] | null;
 };
 
-export default function AdminPage() {
+export default function AdminSchedulePage({
+  params,
+}: {
+  params: { date: string };
+}) {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [allSlots, setAllSlots] = useState<Slot[]>([]);
-  const [loading, setLoading] = useState(false);
-
   const [adminError, setAdminError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
+  const [slotsForDay, setSlotsForDay] = useState<Slot[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const selectedDate = params.date;
 
   async function checkAdmin() {
     const supabase = createClient();
@@ -42,46 +45,36 @@ export default function AdminPage() {
       setIsAdmin(false);
       return;
     }
-    setCurrentUser({ id: user.id, email: user.email });
     const { data: profile, error } = await supabase
       .from("reserve_profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-    if (error) {
-      setAdminError(`プロフィール取得エラー: ${error.message}`);
-      setIsAdmin(false);
-      return;
-    }
-    if (!profile) {
-      setAdminError("reserve_profiles にあなたのレコードがありません。Supabase の auth.users の id と同じ id で reserve_profiles に行を追加してください。");
+    if (error || !profile) {
+      setAdminError(`プロフィール取得エラー: ${error?.message ?? "不明なエラー"}`);
       setIsAdmin(false);
       return;
     }
     setIsAdmin(profile.role === "admin");
   }
 
-  useEffect(() => {
-    checkAdmin();
-  }, []);
-
-  const refetchSlots = useCallback(async () => {
+  const fetchSlotsForDay = useCallback(async () => {
     const supabase = createClient();
-    const now = new Date();
-    const past = new Date(now);
-    past.setDate(past.getDate() - 7);
-    const limit = new Date(now);
-    limit.setDate(limit.getDate() + 90);
+    const start = new Date(`${selectedDate}T00:00:00`);
+    const end = new Date(`${selectedDate}T23:59:59`);
 
     const { data, error } = await supabase
       .from("reserve_slots")
       .select(`*, reserve_profiles:booked_by (email)`)
-      .gte("start_time", past.toISOString())
-      .lte("start_time", limit.toISOString())
+      .gte("start_time", start.toISOString())
+      .lte("start_time", end.toISOString())
       .order("start_time", { ascending: true });
 
     if (error) {
       console.error("Fetch slots error:", error);
+      setSlotsForDay([]);
+      setLoading(false);
+      return;
     }
 
     const slots: Slot[] = ((data ?? []) as SlotRow[]).map((s) => {
@@ -95,14 +88,18 @@ export default function AdminPage() {
         booker_email: email ?? null,
       };
     });
-    setAllSlots(slots);
+    setSlotsForDay(slots);
     setLoading(false);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    checkAdmin();
   }, []);
 
   useEffect(() => {
     setLoading(true);
-    refetchSlots();
-  }, [refetchSlots]);
+    fetchSlotsForDay();
+  }, [fetchSlotsForDay]);
 
   if (isAdmin === null) {
     return <p className="text-slate-500">読み込み中...</p>;
@@ -115,16 +112,6 @@ export default function AdminPage() {
         {adminError && (
           <p className="mt-2 text-sm text-red-700 font-medium">{adminError}</p>
         )}
-        {currentUser && (
-          <div className="mt-3 rounded-lg bg-white p-3 text-xs text-slate-600">
-            <p>ログイン中: <strong>{currentUser.email ?? "—"}</strong></p>
-            <p className="mt-1 break-all">ID: <code>{currentUser.id}</code></p>
-            <p className="mt-2 text-slate-500">Supabase の reserve_profiles の id がこの ID と一致し、role が admin か確認してください。</p>
-          </div>
-        )}
-        <p className="mt-3 text-sm text-amber-700">
-          reserve_profiles で上記 ID の行の role を <code className="rounded bg-amber-100 px-1">admin</code> に設定後、「再確認」をクリックしてください。
-        </p>
         <div className="mt-4 flex gap-3">
           <button
             type="button"
@@ -134,10 +121,10 @@ export default function AdminPage() {
             再確認
           </button>
           <Link
-            href="/dashboard"
+            href="/admin"
             className="inline-block rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
-            ダッシュボードに戻る
+            月間カレンダーに戻る
           </Link>
         </div>
       </div>
@@ -146,22 +133,28 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">管理ダッシュボード</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          月間カレンダーから日付を選び、その日の予約可能時間を登録・確認できます
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800">当日スケジュール</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {format(new Date(selectedDate + "T12:00:00"), "yyyy/MM/dd")} の予約可能時間を設定します
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push("/admin")}
+          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          月間カレンダーへ戻る
+        </button>
       </div>
 
-      <section className="w-full">
-        <FullScreenMonthCalendar
-          currentDate={calendarDate}
-          onCurrentDateChange={setCalendarDate}
-          onDateSelect={(dateKey) => router.push(`/admin/schedule/${dateKey}`)}
-          slots={allSlots}
-          highlightMode="any"
-        />
-      </section>
+      <FullDaySchedule
+        mode="admin"
+        selectedDate={selectedDate}
+        slotsForDay={slotsForDay}
+        onSlotsChange={fetchSlotsForDay}
+      />
 
       {loading && (
         <p className="text-center text-sm text-slate-500">読み込み中...</p>
